@@ -1,0 +1,1 @@
+An automated framework for evaluating LLM outputs, tracking accuracy/cost/latency metrics, root-cause analysis, and model adaptation via fine-tuning & few-shot prompting.
