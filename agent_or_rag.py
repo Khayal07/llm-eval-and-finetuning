@@ -109,7 +109,11 @@ def _ctx_docs(docs: List[Dict]) -> Callable[[str, int], List[Tuple[str, str, str
     return _retrieve
 
 
-def build_zero_shot_messages(question: str, context: List[Tuple[str, str, str, float]]) -> List[Dict]:
+def build_zero_shot_messages(
+    question: str,
+    context: List[Tuple[str, str, str, float]],
+    system_prompt: Optional[str] = None,
+) -> List[Dict]:
     blocks = []
     for doc_id, title, content, _score in context:
         blocks.append(f"[{doc_id}] {title}: {content}")
@@ -122,7 +126,7 @@ def build_zero_shot_messages(question: str, context: List[Tuple[str, str, str, f
         "Answer using only the context above."
     )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt or SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
 
@@ -134,6 +138,7 @@ def answer(
     k: int = DEFAULT_K,
     mode: str = "zero_shot",
     few_shot_pairs: Optional[List[Tuple[str, str]]] = None,
+    system_prompt: Optional[str] = None,
     kb: Optional[List[Dict]] = None,
 ) -> AnswerResult:
     """Run the RAG chain for one question and return the structured result."""
@@ -142,9 +147,11 @@ def answer(
     retrieve_fn = _ctx_docs(docs)
     context = retrieve_fn(question, k)
 
-    messages = build_zero_shot_messages(question, context)
+    messages = build_zero_shot_messages(question, context, system_prompt=system_prompt)
     if mode == "few_shot" and few_shot_pairs:
-        messages = _build_few_shot_messages(question, context, few_shot_pairs)
+        messages = _build_few_shot_messages(
+            question, context, few_shot_pairs, system_prompt=system_prompt
+        )
 
     client = client or LLMClient(default_model=model)
     with timer() as t:
@@ -165,6 +172,7 @@ def _build_few_shot_messages(
     question: str,
     context: List[Tuple[str, str, str, float]],
     few_shot_pairs: List[Tuple[str, str]],
+    system_prompt: Optional[str] = None,
 ) -> List[Dict]:
     blocks = [f"[{doc_id}] {title}: {content}" for doc_id, title, content, _ in context]
     context_text = "\n".join(blocks) if blocks else "(no documents retrieved)"
@@ -178,7 +186,7 @@ def _build_few_shot_messages(
         user_parts.append(f"EXAMPLE {i}\nQ: {q}\nA: {a}")
     user_parts.extend(["", "Question:", question])
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt or SYSTEM_PROMPT},
         {"role": "user", "content": "\n".join(user_parts)},
     ]
 

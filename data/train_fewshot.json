@@ -1,9 +1,14 @@
 {
   "meta": {
     "split": "fewshot",
-    "usage": "Exemplars for few-shot prompting and optional fine-tuning preparation. Topics reference only knowledge base documents that no test_heldout.json question uses.",
-    "count": 6,
-    "contamination_note": "No sample id in this file appears in test_heldout.json, and the referenced kb_doc_ids are disjoint from those used by the test set."
+    "usage": "Exemplars for few-shot prompting and optional fine-tuning preparation. Topics reference only knowledge base documents that no test_heldout.json question uses, so the test set stays contamination-free.",
+    "count": 9,
+    "contamination_note": "No sample id in this file appears in test_heldout.json, and the referenced kb_doc_ids are disjoint from those used by the test set.",
+    "skill_exemplars": "Three exemplars (q_f_007..q_f_009) demonstrate the fixes targeted by the root-cause analysis: no-evidence refusal, step-by-step arithmetic with a verified final number, and explicit-threshold answers.",
+    "categories": {
+      "normal": "Direct single-hop factual exemplars.",
+      "edge_case": "Skill exemplars demonstrating refusal, arithmetic, and threshold behavior."
+    }
   },
   "samples": [
     {
@@ -53,6 +58,33 @@
       "kb_doc_ids": ["kb12"],
       "question": "How long does AcmeCorp retain personal data?",
       "expected_answer": "Personal data is retained for 24 months, then automatically deleted."
+    },
+    {
+      "id": "q_f_007",
+      "category": "edge_case",
+      "edge_type": "out_of_scope",
+      "demonstrates": "no_evidence_refusal",
+      "kb_doc_ids": [],
+      "question": "Does AcmeCorp offer childcare subsidies to employees?",
+      "expected_answer": "I cannot find this information in the knowledge base."
+    },
+    {
+      "id": "q_f_008",
+      "category": "edge_case",
+      "edge_type": "arithmetic",
+      "demonstrates": "step_by_step_arithmetic",
+      "kb_doc_ids": ["kb8"],
+      "question": "If one parent takes one third of the parental leave, how many weeks remain for the other parent?",
+      "expected_answer": "Approximately 10.7 weeks remain: 16 - (16 / 3) = 16 - 5.33 = 10.67. When the result is fractional, report it as approximately 10.7; do not round to a whole number."
+    },
+    {
+      "id": "q_f_009",
+      "category": "edge_case",
+      "edge_type": "threshold",
+      "demonstrates": "explicit_threshold",
+      "kb_doc_ids": ["kb7"],
+      "question": "I have been waiting 2 hours for a password reset. Is that correct?",
+      "expected_answer": "No, the helpdesk SLA is 1 hour, so a 2-hour wait exceeds the allowed limit."
     }
   ]
 }

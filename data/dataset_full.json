@@ -2,9 +2,9 @@
   "meta": {
     "project": "ai-eval-finetune-framework",
     "domain": "fictional company knowledge base (AcmeCorp)",
-    "total_samples": 18,
+    "total_samples": 21,
     "split_counts": {
-      "fewshot": 6,
+      "fewshot": 9,
       "heldout": 12
     },
     "contamination_policy": "Few-shot exemplars in train_fewshot.json are chosen from topics that never appear in test_heldout.json. The two splits share no sample ids and reference disjoint knowledge base documents, preventing test-set contamination.",
@@ -129,6 +129,36 @@
       "kb_doc_ids": ["kb12"],
       "question": "How long does AcmeCorp retain personal data?",
       "expected_answer": "Personal data is retained for 24 months, then automatically deleted."
+    },
+    {
+      "id": "q_f_007",
+      "split": "fewshot",
+      "category": "edge_case",
+      "edge_type": "out_of_scope",
+      "demonstrates": "no_evidence_refusal",
+      "kb_doc_ids": [],
+      "question": "Does AcmeCorp offer childcare subsidies to employees?",
+      "expected_answer": "I cannot find this information in the knowledge base."
+    },
+    {
+      "id": "q_f_008",
+      "split": "fewshot",
+      "category": "edge_case",
+      "edge_type": "arithmetic",
+      "demonstrates": "step_by_step_arithmetic",
+      "kb_doc_ids": ["kb8"],
+      "question": "If one parent takes one third of the parental leave, how many weeks remain for the other parent?",
+      "expected_answer": "Approximately 10.7 weeks remain: 16 - (16 / 3) = 16 - 5.33 = 10.67. When the result is fractional, report it as approximately 10.7; do not round to a whole number."
+    },
+    {
+      "id": "q_f_009",
+      "split": "fewshot",
+      "category": "edge_case",
+      "edge_type": "threshold",
+      "demonstrates": "explicit_threshold",
+      "kb_doc_ids": ["kb7"],
+      "question": "I have been waiting 2 hours for a password reset. Is that correct?",
+      "expected_answer": "No, the helpdesk SLA is 1 hour, so a 2-hour wait exceeds the allowed limit."
     },
     {
       "id": "q_h_001",
