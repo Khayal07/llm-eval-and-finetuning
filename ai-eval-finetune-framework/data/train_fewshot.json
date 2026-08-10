@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "split": "fewshot",
+    "usage": "Exemplars for few-shot prompting and optional fine-tuning preparation. Topics reference only knowledge base documents that no test_heldout.json question uses.",
+    "count": 6,
+    "contamination_note": "No sample id in this file appears in test_heldout.json, and the referenced kb_doc_ids are disjoint from those used by the test set."
+  },
+  "samples": [
+    {
+      "id": "q_f_001",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb7"],
+      "question": "How long do I wait for a password reset through the helpdesk?",
+      "expected_answer": "Password reset requests are resolved within 1 hour."
+    },
+    {
+      "id": "q_f_002",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb7"],
+      "question": "Do I need a VPN when working from a coffee shop?",
+      "expected_answer": "Yes, a VPN is required whenever you use public or untrusted Wi-Fi."
+    },
+    {
+      "id": "q_f_003",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb8"],
+      "question": "After how long of tenure can I take parental leave, and how much do I get?",
+      "expected_answer": "16 weeks of fully paid parental leave are available after 6 months of tenure."
+    },
+    {
+      "id": "q_f_004",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb10"],
+      "question": "How many weeks of unpaid leave can I take per year?",
+      "expected_answer": "Up to 4 weeks of unpaid leave per calendar year, after paid leave is exhausted."
+    },
+    {
+      "id": "q_f_005",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb11"],
+      "question": "What is the annual education and development budget per employee?",
+      "expected_answer": "$1,000 per year, usable for courses, books, and certifications."
+    },
+    {
+      "id": "q_f_006",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb12"],
+      "question": "How long does AcmeCorp retain personal data?",
+      "expected_answer": "Personal data is retained for 24 months, then automatically deleted."
+    }
+  ]
+}

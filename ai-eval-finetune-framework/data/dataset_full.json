@@ -1,0 +1,242 @@
+{
+  "meta": {
+    "project": "ai-eval-finetune-framework",
+    "domain": "fictional company knowledge base (AcmeCorp)",
+    "total_samples": 18,
+    "split_counts": {
+      "fewshot": 6,
+      "heldout": 12
+    },
+    "contamination_policy": "Few-shot exemplars in train_fewshot.json are chosen from topics that never appear in test_heldout.json. The two splits share no sample ids and reference disjoint knowledge base documents, preventing test-set contamination.",
+    "categories": {
+      "normal": "Direct, single-hop factual questions answerable from a single knowledge base document.",
+      "edge_case": "Adversarial or boundary cases: ambiguous phrasing, out-of-scope topics, multi-hop reasoning, arithmetic, contradicting claims, and threshold rules."
+    }
+  },
+  "knowledge_base": [
+    {
+      "id": "kb1",
+      "title": "Company overview",
+      "content": "AcmeCorp is a software company founded in 2012 and headquartered in Berlin, Germany. It employs roughly 340 people across engineering, product, sales, and support teams."
+    },
+    {
+      "id": "kb2",
+      "title": "Vacation policy",
+      "content": "Full-time employees receive 22 business days of paid vacation per calendar year. Vacation accrues at a rate of 1.83 days per month (22 / 12). Carry-over of unused days to the next year is capped at 5 days. Vacation must be approved by the manager at least two weeks in advance."
+    },
+    {
+      "id": "kb3",
+      "title": "Remote work policy",
+      "content": "Employees may work remotely up to 2 days per week with manager approval. Remote days must still overlap with core hours (10:00-16:00) and employees must be reachable during that window."
+    },
+    {
+      "id": "kb4",
+      "title": "Health insurance and wellness stipend",
+      "content": "The company covers 80% of each employee's health insurance premium; employees pay the remaining 20%. In addition, a wellness stipend of $500 per year is provided for fitness classes, wellness apps, and similar expenses, paid quarterly."
+    },
+    {
+      "id": "kb5",
+      "title": "Expense reimbursement policy",
+      "content": "Business expenses are reimbursed within 5 business days after approval. A receipt must be attached for any single expense above $25. Expenses must be approved by the direct manager."
+    },
+    {
+      "id": "kb6",
+      "title": "Travel policy",
+      "content": "Ground transportation (taxi, ride-hailing) for business trips is reimbursable; keep the receipt because trips usually exceed $25. Flights: economy class on flights under 6 hours; business class only on transoceanic flights longer than 8 hours. Hotels are covered up to $180 per night."
+    },
+    {
+      "id": "kb7",
+      "title": "IT and security policy",
+      "content": "The IT helpdesk resolves password reset requests within 1 hour. A VPN must be used whenever working from a public or untrusted Wi-Fi network. All employees complete quarterly phishing awareness training and must report lost or stolen devices to IT immediately."
+    },
+    {
+      "id": "kb8",
+      "title": "Parental leave policy",
+      "content": "Parents may take 16 weeks of fully paid parental leave after completing 6 months of tenure. The leave can be split between both parents."
+    },
+    {
+      "id": "kb9",
+      "title": "Sick leave policy",
+      "content": "For sick leave of up to 3 days no medical certificate is required. Absences of 4 or more consecutive days require a doctor's note."
+    },
+    {
+      "id": "kb10",
+      "title": "Unpaid leave policy",
+      "content": "Employees may take up to 4 weeks of unpaid leave per calendar year, after paid leave entitlements are exhausted. Requests must be approved by the manager."
+    },
+    {
+      "id": "kb11",
+      "title": "Education budget",
+      "content": "Employees receive an annual education and development budget of $1,000, usable for courses, books, and certifications."
+    },
+    {
+      "id": "kb12",
+      "title": "Data retention policy",
+      "content": "AcmeCorp retains personal data for 24 months, after which it is automatically deleted, unless legal retention requirements override this limit."
+    }
+  ],
+  "samples": [
+    {
+      "id": "q_f_001",
+      "split": "fewshot",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb7"],
+      "question": "How long do I wait for a password reset through the helpdesk?",
+      "expected_answer": "Password reset requests are resolved within 1 hour."
+    },
+    {
+      "id": "q_f_002",
+      "split": "fewshot",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb7"],
+      "question": "Do I need a VPN when working from a coffee shop?",
+      "expected_answer": "Yes, a VPN is required whenever you use public or untrusted Wi-Fi."
+    },
+    {
+      "id": "q_f_003",
+      "split": "fewshot",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb8"],
+      "question": "After how long of tenure can I take parental leave, and how much do I get?",
+      "expected_answer": "16 weeks of fully paid parental leave are available after 6 months of tenure."
+    },
+    {
+      "id": "q_f_004",
+      "split": "fewshot",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb10"],
+      "question": "How many weeks of unpaid leave can I take per year?",
+      "expected_answer": "Up to 4 weeks of unpaid leave per calendar year, after paid leave is exhausted."
+    },
+    {
+      "id": "q_f_005",
+      "split": "fewshot",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb11"],
+      "question": "What is the annual education and development budget per employee?",
+      "expected_answer": "$1,000 per year, usable for courses, books, and certifications."
+    },
+    {
+      "id": "q_f_006",
+      "split": "fewshot",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb12"],
+      "question": "How long does AcmeCorp retain personal data?",
+      "expected_answer": "Personal data is retained for 24 months, then automatically deleted."
+    },
+    {
+      "id": "q_h_001",
+      "split": "heldout",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb2"],
+      "question": "How many vacation days do full-time employees receive each year?",
+      "expected_answer": "Full-time employees receive 22 business days of paid vacation per calendar year."
+    },
+    {
+      "id": "q_h_002",
+      "split": "heldout",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb4"],
+      "question": "What share of the health insurance premium does AcmeCorp cover?",
+      "expected_answer": "AcmeCorp covers 80% of the premium; the employee pays the remaining 20%."
+    },
+    {
+      "id": "q_h_003",
+      "split": "heldout",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb5"],
+      "question": "How quickly will I be reimbursed after my expenses are approved?",
+      "expected_answer": "Reimbursement is paid within 5 business days after approval."
+    },
+    {
+      "id": "q_h_004",
+      "split": "heldout",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb5"],
+      "question": "For which expenses do I need to attach a receipt?",
+      "expected_answer": "A receipt is required for any single expense above $25."
+    },
+    {
+      "id": "q_h_005",
+      "split": "heldout",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb3"],
+      "question": "How many days can I work from home each week?",
+      "expected_answer": "You can work remotely up to 2 days per week with your manager's approval."
+    },
+    {
+      "id": "q_h_006",
+      "split": "heldout",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb1"],
+      "question": "When was AcmeCorp founded?",
+      "expected_answer": "AcmeCorp was founded in 2012."
+    },
+    {
+      "id": "q_h_007",
+      "split": "heldout",
+      "category": "edge_case",
+      "edge_type": "ambiguous",
+      "kb_doc_ids": ["kb6"],
+      "question": "I took a taxi from the airport to my hotel on a business trip. Can I expense it?",
+      "expected_answer": "Yes, ground transportation for business trips is reimbursable. Since the fare is likely above $25, you must attach the receipt."
+    },
+    {
+      "id": "q_h_008",
+      "split": "heldout",
+      "category": "edge_case",
+      "edge_type": "out_of_scope",
+      "kb_doc_ids": [],
+      "question": "Does AcmeCorp offer pet insurance to employees?",
+      "expected_answer": "AcmeCorp has no documented pet insurance policy, so I cannot confirm this benefit rather than guess."
+    },
+    {
+      "id": "q_h_009",
+      "split": "heldout",
+      "category": "edge_case",
+      "edge_type": "multi_hop",
+      "kb_doc_ids": ["kb2"],
+      "question": "I joined AcmeCorp in April. Roughly how many vacation days will I accrue by the end of this year?",
+      "expected_answer": "About 16.5 days, because vacation accrues at 1.83 days per month and the months from April through December total 9 months (9 x 1.83 is roughly 16.5)."
+    },
+    {
+      "id": "q_h_010",
+      "split": "heldout",
+      "category": "edge_case",
+      "edge_type": "arithmetic",
+      "kb_doc_ids": ["kb4"],
+      "question": "If my monthly insurance premium is $150, how much do I pay per month and per year?",
+      "expected_answer": "You pay $30 per month (20% of $150) and $360 per year."
+    },
+    {
+      "id": "q_h_011",
+      "split": "heldout",
+      "category": "edge_case",
+      "edge_type": "contradiction",
+      "kb_doc_ids": ["kb2"],
+      "question": "Two colleagues told me different things: one says you can carry over 10 vacation days, the other says 5. Which is correct?",
+      "expected_answer": "The correct limit is 5 days, because vacation carry-over is capped at 5 days for all employees."
+    },
+    {
+      "id": "q_h_012",
+      "split": "heldout",
+      "category": "edge_case",
+      "edge_type": "threshold",
+      "kb_doc_ids": ["kb9"],
+      "question": "I have been sick for five days this week. Do I need a doctor's note?",
+      "expected_answer": "Yes, an absence of 4 or more consecutive days requires a doctor's note."
+    }
+  ]
+}

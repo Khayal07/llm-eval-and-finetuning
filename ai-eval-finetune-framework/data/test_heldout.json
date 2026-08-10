@@ -1,0 +1,106 @@
+{
+  "meta": {
+    "split": "heldout",
+    "usage": "Held-out test set used to measure system quality. Never used to construct few-shot examples or to fine-tune the model.",
+    "count": 12,
+    "contamination_note": "This file is the only source of ground-truth evaluation labels for final reporting."
+  },
+  "samples": [
+    {
+      "id": "q_h_001",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb2"],
+      "question": "How many vacation days do full-time employees receive each year?",
+      "expected_answer": "Full-time employees receive 22 business days of paid vacation per calendar year."
+    },
+    {
+      "id": "q_h_002",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb4"],
+      "question": "What share of the health insurance premium does AcmeCorp cover?",
+      "expected_answer": "AcmeCorp covers 80% of the premium; the employee pays the remaining 20%."
+    },
+    {
+      "id": "q_h_003",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb5"],
+      "question": "How quickly will I be reimbursed after my expenses are approved?",
+      "expected_answer": "Reimbursement is paid within 5 business days after approval."
+    },
+    {
+      "id": "q_h_004",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb5"],
+      "question": "For which expenses do I need to attach a receipt?",
+      "expected_answer": "A receipt is required for any single expense above $25."
+    },
+    {
+      "id": "q_h_005",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb3"],
+      "question": "How many days can I work from home each week?",
+      "expected_answer": "You can work remotely up to 2 days per week with your manager's approval."
+    },
+    {
+      "id": "q_h_006",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb1"],
+      "question": "When was AcmeCorp founded?",
+      "expected_answer": "AcmeCorp was founded in 2012."
+    },
+    {
+      "id": "q_h_007",
+      "category": "edge_case",
+      "edge_type": "ambiguous",
+      "kb_doc_ids": ["kb6"],
+      "question": "I took a taxi from the airport to my hotel on a business trip. Can I expense it?",
+      "expected_answer": "Yes, ground transportation for business trips is reimbursable. Since the fare is likely above $25, you must attach the receipt."
+    },
+    {
+      "id": "q_h_008",
+      "category": "edge_case",
+      "edge_type": "out_of_scope",
+      "kb_doc_ids": [],
+      "question": "Does AcmeCorp offer pet insurance to employees?",
+      "expected_answer": "AcmeCorp has no documented pet insurance policy, so I cannot confirm this benefit rather than guess."
+    },
+    {
+      "id": "q_h_009",
+      "category": "edge_case",
+      "edge_type": "multi_hop",
+      "kb_doc_ids": ["kb2"],
+      "question": "I joined AcmeCorp in April. Roughly how many vacation days will I accrue by the end of this year?",
+      "expected_answer": "About 16.5 days, because vacation accrues at 1.83 days per month and the months from April through December total 9 months (9 x 1.83 is roughly 16.5)."
+    },
+    {
+      "id": "q_h_010",
+      "category": "edge_case",
+      "edge_type": "arithmetic",
+      "kb_doc_ids": ["kb4"],
+      "question": "If my monthly insurance premium is $150, how much do I pay per month and per year?",
+      "expected_answer": "You pay $30 per month (20% of $150) and $360 per year."
+    },
+    {
+      "id": "q_h_011",
+      "category": "edge_case",
+      "edge_type": "contradiction",
+      "kb_doc_ids": ["kb2"],
+      "question": "Two colleagues told me different things: one says you can carry over 10 vacation days, the other says 5. Which is correct?",
+      "expected_answer": "The correct limit is 5 days, because vacation carry-over is capped at 5 days for all employees."
+    },
+    {
+      "id": "q_h_012",
+      "category": "edge_case",
+      "edge_type": "threshold",
+      "kb_doc_ids": ["kb9"],
+      "question": "I have been sick for five days this week. Do I need a doctor's note?",
+      "expected_answer": "Yes, an absence of 4 or more consecutive days requires a doctor's note."
+    }
+  ]
+}
