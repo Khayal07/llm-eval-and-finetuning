@@ -33,6 +33,7 @@ class Completion:
     prompt_tokens: int
     completion_tokens: int
     elapsed_ms: float
+    model: str = ""
 
     @property
     def total_tokens(self) -> int:
@@ -94,6 +95,7 @@ class LLMClient:
                     prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                     completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
                     elapsed_ms=elapsed_ms,
+                    model=getattr(response, "model", "") or model,
                 )
             except Exception as exc:  # noqa: BLE001 - surface as client error below
                 last_error = exc
