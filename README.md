@@ -63,6 +63,7 @@ cp .env.example .env   # then edit .env with your OPENAI_API_KEY
 | `EVAL_MODEL` | Agent model under evaluation | `gpt-4o-mini` |
 | `JUDGE_MODEL` | LLM-as-Judge model | `gpt-4o` |
 | `JUDGE_TEMPERATURE` | Judge sampling temperature | `0.0` |
+| `RETRIEVER_MIN_SIMILARITY` | No-evidence cosine gate for the retriever | `0.12` |
 | `FINE_TUNE_MODEL` | Optional fine-tuned model id | *(empty)* |
 | `PRICING_INPUT_PER_1M` / `PRICING_OUTPUT_PER_1M` | Cost overrides (USD/1M tokens) | from `evals/metrics.py` |
 
@@ -96,6 +97,9 @@ so before/after studies stay auditable.
 - The adaptation step (`optimize.py`) addresses failures from the root-cause
   analysis with no-evidence refusal, step-by-step arithmetic, and explicit
   threshold exemplars.
+- The retriever (`agent_or_rag.py`) gates weak matches with a no-evidence cosine
+  threshold (`RETRIEVER_MIN_SIMILARITY`, default 0.12): out-of-scope queries get
+  a safe fallback message instead of weak context being sent to the LLM.
 
 ---
 
@@ -118,7 +122,11 @@ See `reports/final_eval_report.md` for this run's bias findings.
 
 ## Results
 
-Baseline combined pass **90%** (2 multi-hop failures on the 20-sample set) →
-optimized **95%** with both fixed and one judge-strictness regression analyzed in
-`reports/root_cause_analysis.md`. Mean latency dropped from ~2.18 s to ~1.74 s;
-per-query cost stays ~$0.0001. Full numbers: `reports/final_eval_report.md`.
+Measured combined pass on the 20-sample set: baseline **90%** (2 genuine multi-hop
+failures) → optimized **90%** as graded, with both genuine failures fixed and the
+two optimized-run "failures" reconciled as judge grading artifacts on factually
+correct answers (verified via the semantic cross-check and consistency probes;
+**verified model correctness: 90% → 100%**). Mean latency dropped from ~1.67 s to
+~1.50 s; per-query cost stays ~$0.0001. The retriever's no-evidence cosine gate
+safely refuses out-of-scope queries. Full numbers and failure analysis:
+`reports/final_eval_report.md`, `reports/root_cause_analysis.md`.

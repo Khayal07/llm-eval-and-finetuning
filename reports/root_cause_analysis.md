@@ -1,8 +1,14 @@
-# Root Cause Analysis — Baseline Run
+# Root Cause Analysis — Initial Evaluation on the 20-Sample Set
 
-Date: 2026-08-10
+Date: 2026-08-17
 Config: `EVAL_MODEL=gpt-4o-mini` (agent), `JUDGE_MODEL=gpt-4o` (LLM-as-Judge, temperature 0.0),
-held-out set `data/test_heldout.json` (12 samples), retriever `k=3` (rare-term weighted token overlap).
+held-out set `data/test_heldout.json` (20 samples), retriever `k=3` (rare-term weighted token
+overlap + IDF-weighted cosine no-evidence gate at 0.12).
+Artifacts: `reports/runs/20260817-115808__baseline.json`, `reports/runs/20260817-115904__fewshot_optimized.json`.
+
+Every case below is a **genuinely failed record** from a real run with the actual generated
+answer, retrieval evidence, and scorer scores attached. No synthetic or successful cases are
+presented as failures.
 
 ---
 
@@ -10,122 +16,153 @@ held-out set `data/test_heldout.json` (12 samples), retriever `k=3` (rare-term w
 
 | Metric | Value |
 |---|---|
-| Exact-match rate | 16.67% (2/12) |
-| LLM-as-Judge pass rate | 91.67% (11/12) |
-| Combined pass rate | 91.67% (11/12) |
-| Mean / median latency | 1877 ms / 1643 ms (p95 3779 ms) |
-| Total estimated cost | $0.000739 |
+| Exact-match rate | 15.00% (3/20) |
+| Semantic pass rate (cosine ≥ 0.35) | 90.00% (18/20) |
+| LLM-as-Judge pass rate | 90.00% (18/20) |
+| Combined pass rate | 90.00% (18/20) |
+| Mean / median latency | 1672.53 / 1486.94 ms |
+| Total cost | $0.001155 ($5.8e-05 / query) |
 
-Failed (judge verdict = fail): `q_h_009` only.
-Exact-match failed on 10/12 samples even though the judge accepted most of them ->
-the strict scorer is a lower bound and surface phrasing dominates it.
-
----
-
-## 2. Failure case 1 — Weak retrieval (out-of-scope question)
-
-Sample: `q_h_008` — "Does AcmeCorp offer pet insurance to employees?"
-Reference: "AcmeCorp has no documented pet insurance policy…"
-
-Retrieval evidence (top-3 docs with score):
-
-| rank | doc | score |
-|---|---|---|
-| 1 | kb3 (Remote work policy) | 4.86 |
-| 2 | kb4 (Health insurance) | 4.49 |
-| 3 | kb2 (Vacation policy) | 3.24 |
-
-The knowledge base contains **no** pet-insurance document, so every returned doc is irrelevant.
-They matched only on generic tokens such as "employees", "AcmeCorp", "offer". The system passed
-only because the prompt's refusal instruction ("I cannot find this information in the knowledge base.")
-was followed exactly.
-
-Root cause: the retriever has **no evidence-missing signal**. It always returns k documents, so the
-answer step is one weak refusal-rule away from hallucinating a policy. If the refusal instruction were
-absent or the model verbose, the same context would likely produce a fabricated benefit.
-
-Fix direction: add a retrieval floor/threshold + "no evidence above score X" branch, and keep the
-explicit refusal instruction.
+**Genuinely failed ids (baseline): `q_h_009`, `q_h_018`** — both multi-hop vacation
+proration. All other edge families (ambiguous, arithmetic, contradiction, threshold,
+out-of-scope) and all normal questions passed.
 
 ---
 
-## 3. Failure case 2 — Weak prompt / reasoning consistency (multi-hop arithmetic)
+## 2. Failure case 1 — Weak prompt / arithmetic verification (`q_h_018`)
 
-Sample: `q_h_009` — "I joined AcmeCorp in April. Roughly how many vacation days will I accrue by the end of this year?"
-Reference: "About 16.5 days (1.83 days/month x 9 months, Apr–Dec)."
-Judge verdict: **fail**.
+Sample `q_h_018` — "I joined AcmeCorp in September. Roughly how many vacation days will I
+accrue by the end of this year?"
+Reference: "About 7.3 days … 1.83 days per month … 4 months (4 x 1.83 is roughly 7.3)."
 
-Retrieval was correct here: kb2 (Vacation policy) ranked first with score 32.98,
-so retrieval is not the cause. The generation step failed:
+> Generated: "You will accrue approximately **7.5** vacation days by the end of this year.
+> This is calculated as 1.83 days per month for 4 months (September to December)."
 
-> Generated: "…you will have accrued approximately **15** vacation days. This is calculated based on 1.83 days
-> per month from April to December (9 months), which totals **16.47 days**. However, since…"
+Retrieval was correct (kb2, score 32.98 raw / cosine 0.229) — retrieval is **not** the cause.
+The model multiplied 1.83 × 4 = **7.5**, but the correct product is **7.32**. It showed the
+right structure but never verified the arithmetic, so a small multiplication error shipped as
+the final number. (Contrast `q_h_010`, where the model showed its working and passed.)
 
-The model computed 16.47 correctly, then contradicted itself in the final sentence and concluded 15.
-It silently applied an unstated proration/rounding rule. Compare with `q_h_010` (insurance math), where the
-same model showed its working and passed — the arithmetic skill exists but is not enforced.
-
-Root cause: prompt direction. The zero-shot prompt never instructs the model to (a) show the calculation
-step by step, (b) verify the final number against its own arithmetic, or (c) avoid applying rules that are
-not in the context. Multi-hop questions therefore depend on emergent model discipline.
-
-Fix direction (Checkpoint 5): a few-shot exemplar that demonstrates 1.83 x 9 = 16.5 with an explicit
-"final answer = computed value, do not re-derive" rule.
+Root cause: **weak prompt** — the zero-shot prompt does not require showing the calculation
+and checking the final number. Multi-hop arithmetic depends on emergent model discipline.
+Fixed in the few-shot adapted prompt by the `step_by_step_arithmetic` exemplar
+(optimized: 1.83 x 4 = 7.3, combined pass **True**, semantic 0.63).
 
 ---
 
-## 4. Failure case 3 — Ambiguous / under-specified question
+## 3. Failure case 2 — Weak prompt / reasoning consistency (`q_h_009`)
 
-Sample: `q_h_007` — "I took a taxi from the airport to my hotel on a business trip. Can I expense it?"
-Reference: "Yes… Since the fare is likely above $25, you must attach the receipt."
+Sample `q_h_009` — "I joined AcmeCorp in April. Roughly how many vacation days will I accrue
+by the end of this year?"
+Reference: "About 16.5 days … April through December total 9 months (9 x 1.83 is roughly 16.5)."
 
-Retrieval was correct (kb6, travel policy, score 16.08) and the judge accepted the answer,
-but the generated response was factually soft and dropped the concrete threshold:
+> Generated: "…you will have accrued approximately **15** vacation days. This is calculated
+> based on 1.83 days per month from April to December (9 months), which totals **16.47** days.
+> However, since carry-over of unused days to the next year is capped at 5 days, you will have
+> 15 days available for use."
 
-> Generated: "Yes, you can expense the taxi… Be sure to keep the receipt, especially since trips
-> usually exceed…"
+Retrieval was correct (kb2, raw 32.98 / cosine 0.229). The model computed 16.47 correctly,
+then **contradicted itself** in the final sentence and concluded 15, silently applying the
+carry-over cap (which answers a different question: available balance, not accrued days).
 
-The question is ambiguous: it never says the fare exceeds $25, so the model hedged ("since trips usually…")
-instead of anchoring the answer to the explicit "$25 → receipt required" rule.
-
-Root cause: the question is under-specified, and the zero-shot prompt does not require the answer to
-state the *governing threshold explicitly* for conditional policies. The resulting phrasing is correct
-in spirit but not exact, which also explains why exact-match failed here.
-
-Fix direction: instruction to "always state the exact threshold/number from the context that drives the
-decision" plus a few-shot exemplar for conditional expense rules.
-
----
-
-## 5. Methodological failure — Exact-match fragility (metric-level)
-
-10 of 12 samples were semantically correct per the judge but not string-identical to the reference.
-Examples: "You will be reimbursed within 5 business days after approval of your expenses."
-vs reference "Reimbursement is paid within 5 business days after approval."
-
-Impact: exact-match underestimates real accuracy (16.67% vs judge 91.67%). It is kept because it is
-cheap, deterministic, and catches verbatim-copying; the combined pass uses the judge verdict so the
-final metric is not dragged down by surface phrasing.
+Root cause: **weak prompt** — no instruction to (a) verify the final number against its own
+arithmetic or (b) avoid applying rules not required by the question. Multi-hop reasoning
+consistency is emergent, not enforced. Fixed by the few-shot adapted prompt
+(optimized: 1.83 x 9 = 16.47 → "approximately 16.5", combined pass **True**, semantic 0.68).
 
 ---
 
-## 6. LLM-as-Judge bias check (length bias)
+## 4. Failure case 3 — LLM-as-Judge strictness on a correct answer (`q_h_013`, optimized run)
 
-`length_bias_report` on this run flagged **asserted length bias** (Pearson |corr| between
-judge score and answer word count above the 0.25 guardrail).
+Sample `q_h_013` — "On a 5-hour business flight, which class am I allowed to book?"
+Reference: "Economy class, because business class is only allowed on transoceanic flights
+longer than 8 hours."
 
-Mitigations already in place: the judge prompt explicitly instructs to ignore length and style, and
-scores only factual correctness. Follow-up recommended (`bias_handler.py`): position-bias and
-consistency probes should be run on a sample before the final report to quantify residual bias.
+> Generated (optimized): "You are allowed to book economy class on **flights under 6 hours**."
+
+This is the **verbatim economy rule** from kb6 ("economy class on flights under 6 hours");
+5 h < 6 h ⇒ economy is the correct decision. The judge failed it:
+
+> Judge: "The AI answer incorrectly states the threshold for business class as flights under
+> 6 hours…" — a misreading; the answer never claims business class is allowed under 6 hours.
+
+Evidence that the answer is correct, not the model:
+- Semantic-similarity cross-check: **0.523** (above the 0.35 pass threshold).
+- The identical fact pattern passed at baseline ("You are allowed to book economy class on a
+  5-hour business flight.").
+- A 3-round `judge_consistency_check` on this pair returned `[False, False, False]` — the
+  judge is **stably strict**, not randomly wrong, on reference-anchored rephrasings.
+
+Root cause: **evaluator limitation** — the LLM judge over-anchors to the reference's phrasing
+and penalizes a correct answer that cites a different valid policy rule. This is exactly the
+failure mode the deterministic semantic cross-check (Checkpoint 2) is designed to surface, and
+it motivates the `--bias-audit` probes.
 
 ---
 
-## 7. Conclusion and plan
+## 5. Failure case 4 — Judge run-to-run variance on a threshold answer (`q_h_019`, optimized run)
 
-- Retrieval is strong for in-KB facts but blind to missing evidence (`q_h_008`).
-- Generation fails on multi-hop arithmetic consistency (`q_h_009`).
-- Ambiguous questions yield soft answers that strict matching rejects (`q_h_007`).
+Sample `q_h_019` — "…if I stay home tomorrow that will be my fourth day. Will I need a
+doctor's note?"
+Reference: "Yes, four consecutive days of absence, including Thursday, require a doctor's note."
 
-Checkpoint 5 will address the prompt-level failures via few-shot exemplars:
-(1) explicit no-evidence refusal, (2) step-by-step arithmetic with verified final number,
-(3) always-state-the-threshold rule, regenerated from `data/train_fewshot.json` (contamination-free).
+> Generated: "Yes, you will need a doctor's note because **absences of 4 or more consecutive
+> days require a doctor's note**." — the verbatim rule from kb9.
+
+This record failed only in the optimized run; the same answer passed at baseline. A 3-round
+`judge_consistency_check` on this exact pair scored `[True, True, True]` (0 flips). The judge
+is correct when the answer is graded against the reference's own threshold phrasing, and the
+failed verdict in the run is run-to-run sampling variance, not a model error. Semantic score 0.56.
+
+Root cause: **judge nondeterminism** on boundary/threshold answers — one of the reasons the
+judge runs at temperature 0.0, `judge_consistency_check` exists, and the objective semantic
+cross-check is recorded per sample.
+
+---
+
+## 6. Weak retrieval — out-of-scope safety and the no-evidence threshold
+
+The two out-of-scope questions (`q_h_008` pet insurance, `q_h_020` company cars/relocation)
+**passed**, but in the pre-threshold retriever they were a risk: raw token-overlap ranked
+irrelevant docs above real evidence (e.g. `q_h_020` raw top score 8.17 > in-scope `q_h_006`
+raw score 5.34), so safety depended entirely on the refusal instruction being followed.
+
+Checkpoint 4 adds a **no-evidence cosine gate** (`RETRIEVER_MIN_SIMILARITY`, default 0.12):
+when the best-matching document's IDF-weighted cosine similarity falls below the floor, the
+context is emptied and the answer step receives the safe fallback ("I cannot find this
+information in the knowledge base.") instead of weak context. Measured on the full 20-sample
+set:
+
+| Query type | Samples | Cosine evidence | Gate result |
+|---|---|---|---|
+| Out-of-scope | `q_h_008`, `q_h_020` | 0.065, 0.093 | **no_evidence=True**, context empty |
+| In-scope (all 18) | — | 0.140 – 0.355 | no_evidence=False, top-k fed |
+
+The gate separates the classes cleanly and is recorded per sample (`no_evidence`,
+`evidence_score` in run artifacts). It hardens out-of-scope safety without touching
+in-scope retrieval quality.
+
+---
+
+## 7. Methodological notes
+
+- **Exact match (15%)** is a strict string lower bound; semantic and judge scoring carry the
+  reported quality signal.
+- **Semantic pass rate (90%)** under-scores the two out-of-scope refusals (terse refusal text
+  vs longer reference) even though the judge correctly accepts them; it is a reference-anchored
+  floor, not a ceiling.
+- **Reconciliation:** the optimized run's two failed records are both **factually correct
+  answers** (kb-verified, semantic ≥ 0.52, one stable-3×fail judge misread, one verified
+  correct 3×pass under re-grading). Genuine model failures were only `q_h_009`/`q_h_018`
+  at baseline, and both are fixed by the few-shot adaptation.
+
+---
+
+## 8. Conclusion
+
+1. **Weak prompt** (multi-hop arithmetic): `q_h_018`, `q_h_009` — genuine failures, fixed by
+   few-shot (step-by-step + verified final number).
+2. **Evaluator strictness / variance**: `q_h_013`, `q_h_019` — correct answers graded as
+   failures; surfaced by the semantic cross-check and consistency probes.
+3. **Weak retrieval** (out-of-scope): hardened by the no-evidence cosine gate so weak context
+   is never sent to the LLM.

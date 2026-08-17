@@ -120,6 +120,8 @@ def run_evaluation(
                 judge_model=judge_model,
                 semantic_score=sem_score,
                 semantic_pass=sem_pass,
+                no_evidence=result.no_evidence,
+                evidence_score=result.evidence_score,
             )
         )
 

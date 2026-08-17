@@ -9,19 +9,25 @@ reproduced and then fixed later in the adaptation step.
 from __future__ import annotations
 
 import json
+import logging
 import math
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from evals.llm_client import LLMClient
 from evals.metrics import timer
+from evals.text_utils import cosine_similarity
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_DIR = PROJECT_ROOT / "data"
 DEFAULT_K = 3
+DEFAULT_MIN_SIMILARITY = 0.12  # cosine gate below which retrieval counts as "no evidence".
 
 _PUNCT_RE = re.compile(r"[\W_]+", flags=re.UNICODE)
 _WS_RE = re.compile(r"\s+")
@@ -43,6 +49,18 @@ def _tokens(text: str) -> List[str]:
         return []
     reduced = _WS_RE.sub(" ", _PUNCT_RE.sub(" ", text.lower()))
     return [t for t in reduced.split() if t]
+
+
+def min_similarity_from_env() -> float:
+    """Retrieval evidence gate threshold from RETRIEVER_MIN_SIMILARITY (.env)."""
+    raw = os.getenv("RETRIEVER_MIN_SIMILARITY", "")
+    if not raw.strip():
+        return DEFAULT_MIN_SIMILARITY
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("Ignoring invalid RETRIEVER_MIN_SIMILARITY=%r", raw)
+        return DEFAULT_MIN_SIMILARITY
 
 
 def load_knowledge_base(path: Optional[Path] = None) -> List[Dict]:
@@ -89,6 +107,34 @@ def retrieve(
     ]
 
 
+def retrieve_with_evidence_gate(
+    docs: List[Dict],
+    query: str,
+    k: int = DEFAULT_K,
+    min_similarity: float = DEFAULT_MIN_SIMILARITY,
+    df_index: Optional[Counter] = None,
+    corpus: Optional[Sequence[str]] = None,
+) -> Tuple[List[Tuple[str, str, str, float]], bool, Optional[float]]:
+    """Top-k retrieval plus a no-evidence cosine gate.
+
+    Returns (context, no_evidence, evidence_score). When the best-matching
+    document's cosine similarity (IDF-weighted) falls below `min_similarity`,
+    the context is emptied so the answer step receives the safe fallback
+    message instead of weak, possibly irrelevant context. This protects against
+    hallucination on out-of-scope queries.
+    """
+    df = df_index or build_index(docs)
+    context = retrieve(docs, query, k=k, df_index=df)
+    if not context:
+        return [], True, 0.0
+    if corpus is None:
+        corpus = [d["content"] for d in docs]
+    evidence_score = cosine_similarity(query, context[0][2], corpus=corpus)
+    if evidence_score < min_similarity:
+        return [], True, round(evidence_score, 4)
+    return context, False, round(evidence_score, 4)
+
+
 @dataclass
 class AnswerResult:
     text: str
@@ -98,15 +144,8 @@ class AnswerResult:
     model: str
     mode: str
     retrieved_docs: List[Tuple[str, str, str, float]] = field(default_factory=list)
-
-
-def _ctx_docs(docs: List[Dict]) -> Callable[[str, int], List[Tuple[str, str, str, float]]]:
-    index = build_index(docs)
-
-    def _retrieve(query: str, k: int) -> List[Tuple[str, str, str, float]]:
-        return retrieve(docs, query, k=k, df_index=index)
-
-    return _retrieve
+    no_evidence: bool = False
+    evidence_score: Optional[float] = None
 
 
 def build_zero_shot_messages(
@@ -117,7 +156,11 @@ def build_zero_shot_messages(
     blocks = []
     for doc_id, title, content, _score in context:
         blocks.append(f"[{doc_id}] {title}: {content}")
-    context_text = "\n".join(blocks) if blocks else "(no documents retrieved)"
+    context_text = (
+        "\n".join(blocks)
+        if blocks
+        else "(no documents retrieved above the evidence similarity threshold)"
+    )
     user = (
         "CONTEXT DOCUMENTS:\n"
         f"{context_text}\n\n"
@@ -140,12 +183,26 @@ def answer(
     few_shot_pairs: Optional[List[Tuple[str, str]]] = None,
     system_prompt: Optional[str] = None,
     kb: Optional[List[Dict]] = None,
+    min_similarity: Optional[float] = None,
 ) -> AnswerResult:
-    """Run the RAG chain for one question and return the structured result."""
+    """Run the RAG chain for one question and return the structured result.
+
+    `min_similarity` is the no-evidence cosine gate; when None it falls back to
+    the RETRIEVER_MIN_SIMILARITY env variable / DEFAULT_MIN_SIMILARITY.
+    """
     docs = list(kb) if kb is not None else load_knowledge_base()
 
-    retrieve_fn = _ctx_docs(docs)
-    context = retrieve_fn(question, k)
+    gate = min_similarity if min_similarity is not None else min_similarity_from_env()
+    index = build_index(docs)
+    corpus = [d["content"] for d in docs]
+    context, no_evidence, evidence_score = retrieve_with_evidence_gate(
+        docs,
+        question,
+        k=k,
+        min_similarity=gate,
+        df_index=index,
+        corpus=corpus,
+    )
 
     messages = build_zero_shot_messages(question, context, system_prompt=system_prompt)
     if mode == "few_shot" and few_shot_pairs:
@@ -165,6 +222,8 @@ def answer(
         model=completion.model or (model or client.default_model),
         mode=mode,
         retrieved_docs=context,
+        no_evidence=no_evidence,
+        evidence_score=evidence_score,
     )
 
 
@@ -175,7 +234,11 @@ def _build_few_shot_messages(
     system_prompt: Optional[str] = None,
 ) -> List[Dict]:
     blocks = [f"[{doc_id}] {title}: {content}" for doc_id, title, content, _ in context]
-    context_text = "\n".join(blocks) if blocks else "(no documents retrieved)"
+    context_text = (
+        "\n".join(blocks)
+        if blocks
+        else "(no documents retrieved above the evidence similarity threshold)"
+    )
     user_parts = [
         "CONTEXT DOCUMENTS:",
         context_text,
