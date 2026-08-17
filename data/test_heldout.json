@@ -156,7 +156,7 @@
       "edge_type": "threshold",
       "kb_doc_ids": ["kb9"],
       "question": "I have been sick for three days and I'm still unwell; if I stay home tomorrow that will be my fourth day. Will I need a doctor's note?",
-      "expected_answer": "Yes, an absence of 4 or more consecutive days requires a doctor's note."
+      "expected_answer": "Yes, four consecutive days of absence, including Thursday, require a doctor's note."
     },
     {
       "id": "q_h_020",

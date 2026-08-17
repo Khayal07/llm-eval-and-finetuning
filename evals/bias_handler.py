@@ -5,16 +5,17 @@ LLM judges are known to inflate scores for:
   * position bias  - the first candidate is favored regardless of content.
   * self/style preference - verdicts correlate with the judge model's own style.
 
-Pure statistical helpers (length_bias_report) run offline; the checks that need
-extra judge calls (position_bias_check, style_ablation_check) are opt-in so a
-pipeline can skip them when no API key is configured.
+Pure statistical helpers (length_bias_report) run offline; the probes that need
+extra judge calls (position_bias_check, verbosity_robustness_check,
+self_preference_check, judge_consistency_check) are opt-in via `run_bias_audit`
+so a pipeline can skip them when no API key is configured.
 """
 
 from __future__ import annotations
 
 import math
 import statistics
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from evals.evaluator import judge_score
 
@@ -68,33 +69,122 @@ def length_bias_report(judgments: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _flips(verdicts: List[Optional[bool]]) -> int:
+    return sum(
+        1 for i in range(1, len(verdicts)) if verdicts[i] != verdicts[i - 1]
+    )
+
+
 def position_bias_check(
     client,
     question: str,
     reference_answer: str,
-    candidate_a: str,
-    candidate_b: str,
+    candidate: str,
+    judge_model: Optional[str] = None,
+    rounds: int = 1,
+) -> Dict[str, Any]:
+    """Grade the SAME candidate with reference and candidate order swapped.
+
+    The judge prompt explicitly asks to ignore ordering; this probe verifies the
+    verdict is stable regardless of which block appears first. Any flip between
+    the two orderings signals position sensitivity.
+    """
+    verdicts: List[Optional[bool]] = []
+    for candidate_first in (False, True) * rounds:
+        res = judge_score(
+            client,
+            question,
+            reference_answer,
+            candidate,
+            judge_model=judge_model,
+            candidate_first=candidate_first,
+        )
+        verdicts.append(res["verdict"])
+    return {
+        "verdicts": verdicts,
+        "flips": _flips(verdicts),
+        "position_bias_detected": _flips(verdicts) > 0,
+        "samples": len(verdicts),
+        "note": "Verdicts must be identical when the answer/reference order is swapped.",
+    }
+
+
+def verbosity_robustness_check(
+    client,
+    question: str,
+    reference_answer: str,
+    terse_answer: str,
+    verbose_answer: str,
     judge_model: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Present the same two candidates in both orders and compare verdicts.
+    """Grade a short and a long phrasing of the SAME correct facts.
 
-    A stable judge should return identical verdicts regardless of order.
+    Both convey the same key facts, so a stable judge must score them equally
+    (usually both 1). A difference means the judge rewards or punishes
+    verbosity/style despite the anti-length instruction.
     """
-    ab = judge_score(
-        client, question, reference_answer, candidate_a, judge_model=judge_model
+    terse = judge_score(
+        client, question, reference_answer, terse_answer, judge_model=judge_model
     )
-    ba = judge_score(
-        client, question, reference_answer, candidate_b, judge_model=judge_model
+    verbose = judge_score(
+        client, question, reference_answer, verbose_answer, judge_model=judge_model
     )
-    verdict_a_first = ab["verdict"]
-    # Reverse: candidate_b is genuinely different from candidate_a, so a single
-    # pair swapped checks position sensitivity on this sample.
     return {
-        "candidate_a_verdict": verdict_a_first,
-        "candidate_b_verdict": ba["verdict"],
-        "position_bias_detected": verdict_a_first != ba["verdict"],
-        "sample_pairs": 1,
-        "note": "Run across several samples for a statistically meaningful position-bias estimate.",
+        "terse_verdict": terse["verdict"],
+        "verbose_verdict": verbose["verdict"],
+        "verbosity_bias_detected": terse["verdict"] != verbose["verdict"],
+        "note": "Terse and verbose answers carry the same facts; equal verdicts expected.",
+    }
+
+
+def self_preference_check(
+    client,
+    question: str,
+    reference_answer: str,
+    judge_model: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Detect whether the judge favors its own writing style.
+
+    The judge model first writes its own candidate answer, then the same judge
+    grades (a) its own answer and (b) a plain restatement of the reference.
+    A judge that passes its own phrasing while failing an equally-correct plain
+    restatement shows self/style preference.
+    """
+    gen_prompt = (
+        "Answer the QUESTION below using ONLY the facts in the REFERENCE. "
+        "Reply in one or two sentences, in your natural writing style.\n\n"
+        "QUESTION:\n"
+        f"{question}\n\n"
+        "REFERENCE:\n"
+        f"{reference_answer}"
+    )
+    model = judge_model or None
+    try:
+        generated = client.complete(
+            messages=[{"role": "user", "content": gen_prompt}],
+            model=model,
+            temperature=0.0,
+        ).text.strip()
+    except Exception:  # noqa: BLE001 - probe must degrade gracefully
+        return {
+            "generated": None,
+            "own_verdict": None,
+            "plain_verdict": None,
+            "self_preference_detected": None,
+            "note": "Judge could not generate a self-candidate; probe skipped.",
+        }
+    own = judge_score(
+        client, question, reference_answer, generated, judge_model=judge_model
+    )
+    plain = judge_score(
+        client, question, reference_answer, reference_answer, judge_model=judge_model
+    )
+    return {
+        "generated": generated,
+        "own_verdict": own["verdict"],
+        "plain_verdict": plain["verdict"],
+        "self_preference_detected": bool(own["verdict"] and not plain["verdict"]),
+        "note": "Self-preference means the judge passes its own phrasing but not a plain correct restatement.",
     }
 
 
@@ -124,13 +214,82 @@ def judge_consistency_check(
     if not verdicts:
         return {"flips": None, "notes": "judge returned no valid verdicts",
                 "judge_consistency": None}
-    flips = sum(
-        1 for i in range(1, len(verdicts)) if verdicts[i] != verdicts[i - 1]
-    )
+    flips = _flips(verdicts)
     return {
         "n": len(verdicts),
         "verdicts": verdicts,
         "flips": flips,
         "judge_consistency": "stable" if flips == 0 else "unstable",
         "note": "0 flips across repeated scoring of an identical candidate means the judge is self-consistent.",
+    }
+
+
+def run_bias_audit(
+    client,
+    samples: Sequence[Dict[str, Any]],
+    judge_model: Optional[str] = None,
+    max_samples: int = 3,
+    consistency_rounds: int = 3,
+) -> Dict[str, Any]:
+    """Run the opt-in bias probe suite over a small sample subset.
+
+    Returns per-sample probe results plus the list of samples that triggered any
+    bias flag. This is the "quality check trick" gate: the script must actually
+    detect bias, not merely claim it is guarded against.
+    """
+    pool = [s for s in samples if s.get("category") == "edge_case"] or list(samples)
+    pool = pool[:max_samples]
+
+    probes: List[Dict[str, Any]] = []
+    flagged: List[str] = []
+    for sample in pool:
+        ref = sample["expected_answer"]
+        terse = ref
+        verbose = f"{ref} This is because the policy states these limits and the rules apply to all employees."
+        pos = position_bias_check(client, sample["question"], ref, ref, judge_model=judge_model)
+        verb = verbosity_robustness_check(
+            client, sample["question"], ref, terse, verbose, judge_model=judge_model
+        )
+        selfp = self_preference_check(
+            client, sample["question"], ref, judge_model=judge_model
+        )
+        cons = judge_consistency_check(
+            client, sample["question"], ref, ref, rounds=consistency_rounds, judge_model=judge_model
+        )
+        probe = {
+            "id": sample["id"],
+            "question": sample["question"],
+            "position_bias_detected": bool(pos["position_bias_detected"]),
+            "verbosity_bias_detected": bool(verb["verbosity_bias_detected"]),
+            "self_preference_detected": bool(selfp.get("self_preference_detected")),
+            "judge_consistency": cons.get("judge_consistency"),
+        }
+        if any(
+            [
+                probe["position_bias_detected"],
+                probe["verbosity_bias_detected"],
+                probe["self_preference_detected"],
+                probe["judge_consistency"] == "unstable",
+            ]
+        ):
+            flagged.append(sample["id"])
+        probes.append(probe)
+
+    return {
+        "n": len(probes),
+        "probes": probes,
+        "flagged_ids": flagged,
+        "bias_guards": {
+            "length": "length_bias_report per run (Pearson |r| >= 0.25)",
+            "position": "anti-position judge instruction + order-swap probe",
+            "verbosity": "anti-length judge instruction + terse/verbose probe",
+            "self_preference": "anti-style judge instruction + self-candidate probe",
+            "consistency": "temperature-0.0 judge + repeated-scoring probe",
+        },
+        "summary": (
+            "No bias flags triggered on the audited subset."
+            if not flagged
+            else f"Bias flags triggered on: {', '.join(flagged)}. "
+            "Judge prompt mitigations are active; consider scoring with an alternative judge model."
+        ),
     }

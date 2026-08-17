@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from agent_or_rag import load_knowledge_base
+from evals.bias_handler import run_bias_audit
+from evals.llm_client import LLMClient, LLMClientError
 from optimize import compare_runs, latest_run, run_optimized
 from pipeline import run_evaluation
 
@@ -57,6 +59,12 @@ def _args() -> argparse.Namespace:
         help=f"Test set JSON path (default: {DEFAULT_TEST_PATH}).",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    parser.add_argument(
+        "--bias-audit",
+        action="store_true",
+        help="Run LLM-as-Judge bias probes (position/verbosity/self-preference/"
+        "consistency) on a small subset after the run and print the audit.",
+    )
     return parser.parse_args()
 
 
@@ -136,6 +144,30 @@ def cmd_compare(args: argparse.Namespace) -> None:
     print(f"optimized run: {optimized}")
 
 
+def _maybe_bias_audit(args: argparse.Namespace, run_result: Dict[str, Any]) -> None:
+    """Opt-in LLM-as-Judge bias probes run after an evaluation run."""
+    if not args.bias_audit:
+        return
+    try:
+        client = LLMClient()
+    except LLMClientError as exc:
+        logger.warning("Bias audit skipped: %s", exc)
+        return
+    samples = json.loads(Path(args.test_path).read_text(encoding="utf-8"))["samples"]
+    audit = run_bias_audit(client, samples)
+    print("\n" + "=" * 60)
+    print("LLM-as-Judge bias audit")
+    print("=" * 60)
+    for probe in audit["probes"]:
+        print(
+            f"  {probe['id']}: position={probe['position_bias_detected']} "
+            f"verbosity={probe['verbosity_bias_detected']} "
+            f"self_pref={probe['self_preference_detected']} "
+            f"consistency={probe['judge_consistency']}"
+        )
+    print(f"  summary: {audit['summary']}")
+
+
 def main() -> None:
     args = _args()
     if args.verbose:
@@ -145,18 +177,18 @@ def main() -> None:
         validate_data()
         return
     if args.mode == "baseline":
-        cmd_baseline(args)
+        _maybe_bias_audit(args, cmd_baseline(args))
         return
     if args.mode == "optimize":
-        cmd_optimize(args)
+        _maybe_bias_audit(args, cmd_optimize(args))
         return
     if args.mode == "compare":
         cmd_compare(args)
         return
 
     # all
-    cmd_baseline(args)
-    cmd_optimize(args)
+    _maybe_bias_audit(args, cmd_baseline(args))
+    _maybe_bias_audit(args, cmd_optimize(args))
     cmd_compare(args)
 
 

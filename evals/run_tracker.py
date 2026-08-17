@@ -43,11 +43,14 @@ def make_result_record(
     judge_verdict: Optional[bool] = None,
     judge_reason: str = "",
     judge_model: Optional[str] = None,
+    semantic_score: Optional[float] = None,
+    semantic_pass: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Build a uniform, JSON-serializable record for one evaluated sample.
 
     `combined_pass` prefers the LLM-judge verdict (semantic) and falls back to
-    exact-match when no judge verdict exists.
+    exact-match when no judge verdict exists. `semantic_score`/`semantic_pass`
+    are the deterministic cosine cross-check on the judge.
     """
     generated = generated_answer or ""
     return {
@@ -68,6 +71,10 @@ def make_result_record(
         "judge_verdict": judge_verdict,
         "judge_reason": judge_reason,
         "judge_model": judge_model,
+        "semantic_score": (
+            round(semantic_score, 4) if semantic_score is not None else None
+        ),
+        "semantic_pass": bool(semantic_pass) if semantic_pass is not None else None,
         "combined_pass": judge_verdict if judge_verdict is not None else bool(exact_match),
     }
 

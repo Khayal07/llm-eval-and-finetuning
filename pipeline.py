@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from agent_or_rag import AnswerResult, answer as default_answer
 from evals.bias_handler import length_bias_report
-from evals.evaluator import exact_match, judge_score
+from evals.evaluator import exact_match, judge_score, semantic_pass, semantic_similarity
 from evals.llm_client import LLMClient, LLMClientError
 from evals.metrics import aggregate_scores, cost_for_model, estimate_cost
 from evals.run_tracker import (
@@ -66,6 +66,10 @@ def run_evaluation(
     samples = _load_samples(test_path)
     answer_kwargs = dict(answer_kwargs or {})
 
+    from agent_or_rag import load_knowledge_base
+
+    kb_corpus = [doc["content"] for doc in load_knowledge_base()]
+
     completion_model = answer_kwargs.get("model") or os.getenv("EVAL_MODEL", "gpt-4o-mini")
     pricing = cost_for_model(completion_model)
 
@@ -77,6 +81,8 @@ def run_evaluation(
         result: AnswerResult = answer_fn(sample["question"], **answer_kwargs)
 
         em = exact_match(result.text, sample["expected_answer"])
+        sem_score = semantic_similarity(result.text, sample["expected_answer"], corpus=kb_corpus)
+        sem_pass = semantic_pass(sem_score)
         verdict, reason = None, ""
         if judge_enabled:
             if judge_on_fail_only and em:
@@ -112,6 +118,8 @@ def run_evaluation(
                 judge_verdict=verdict,
                 judge_reason=reason,
                 judge_model=judge_model,
+                semantic_score=sem_score,
+                semantic_pass=sem_pass,
             )
         )
 

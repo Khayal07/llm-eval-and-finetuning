@@ -110,6 +110,8 @@ def aggregate_scores(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     costs = [r.get("cost_usd", 0.0) for r in rows if r.get("cost_usd") is not None]
 
     exact_rate = _rate(rows, "exact_match")
+    semantic_rate = _rate(rows, "semantic_pass")
+    semantic_scores = [r["semantic_score"] for r in rows if r.get("semantic_score") is not None]
 
     judge_rows = [r for r in rows if r.get("judge_verdict") is not None or r.get("judge_pass") is not None]
     judge_rate = None
@@ -145,6 +147,10 @@ def aggregate_scores(results: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "n": len(rows),
         "exact_match_rate": _pct(exact_rate) if exact_rate is not None else None,
+        "semantic_pass_rate": _pct(semantic_rate) if semantic_rate is not None else None,
+        "mean_semantic_score": (
+            round(statistics.fmean(semantic_scores), 4) if semantic_scores else None
+        ),
         "judge_pass_rate": _pct(judge_rate) if judge_rate is not None else None,
         "combined_pass_rate": _pct(combined_rate) if combined_rate is not None else None,
         "failed_ids": [r.get("id", "?") for r in rows if r.get("combined_pass") is False],
