@@ -2,7 +2,7 @@
   "meta": {
     "split": "heldout",
     "usage": "Held-out test set used to measure system quality. Never used to construct few-shot examples or to fine-tune the model.",
-    "count": 12,
+    "count": 20,
     "contamination_note": "This file is the only source of ground-truth evaluation labels for final reporting."
   },
   "samples": [
@@ -101,6 +101,70 @@
       "kb_doc_ids": ["kb9"],
       "question": "I have been sick for five days this week. Do I need a doctor's note?",
       "expected_answer": "Yes, an absence of 4 or more consecutive days requires a doctor's note."
+    },
+    {
+      "id": "q_h_013",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb6"],
+      "question": "On a 5-hour business flight, which class am I allowed to book?",
+      "expected_answer": "Economy class, because business class is only allowed on transoceanic flights longer than 8 hours."
+    },
+    {
+      "id": "q_h_014",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb1"],
+      "question": "How many people does AcmeCorp employ and where is it headquartered?",
+      "expected_answer": "AcmeCorp employs roughly 340 people and is headquartered in Berlin, Germany."
+    },
+    {
+      "id": "q_h_015",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb4"],
+      "question": "What is the annual wellness stipend and how is it paid out?",
+      "expected_answer": "The wellness stipend is $500 per year, paid quarterly, for fitness classes, wellness apps, and similar expenses."
+    },
+    {
+      "id": "q_h_016",
+      "category": "normal",
+      "edge_type": null,
+      "kb_doc_ids": ["kb3"],
+      "question": "What are the core hours during which I must be reachable when working remotely?",
+      "expected_answer": "Core hours are 10:00 to 16:00, and you must be reachable during that window."
+    },
+    {
+      "id": "q_h_017",
+      "category": "edge_case",
+      "edge_type": "ambiguous",
+      "kb_doc_ids": ["kb6"],
+      "question": "I have a 7-hour flight coming up for a business trip. Can I book business class?",
+      "expected_answer": "No, business class is only permitted on transoceanic flights longer than 8 hours, so a 7-hour flight must be booked in economy."
+    },
+    {
+      "id": "q_h_018",
+      "category": "edge_case",
+      "edge_type": "multi_hop",
+      "kb_doc_ids": ["kb2"],
+      "question": "I joined AcmeCorp in September. Roughly how many vacation days will I accrue by the end of this year?",
+      "expected_answer": "About 7.3 days, because vacation accrues at 1.83 days per month and the months from September through December total 4 months (4 x 1.83 is roughly 7.3)."
+    },
+    {
+      "id": "q_h_019",
+      "category": "edge_case",
+      "edge_type": "threshold",
+      "kb_doc_ids": ["kb9"],
+      "question": "I have been sick for three days and I'm still unwell; if I stay home tomorrow that will be my fourth day. Will I need a doctor's note?",
+      "expected_answer": "Yes, an absence of 4 or more consecutive days requires a doctor's note."
+    },
+    {
+      "id": "q_h_020",
+      "category": "edge_case",
+      "edge_type": "out_of_scope",
+      "kb_doc_ids": [],
+      "question": "Does AcmeCorp provide company cars or a relocation package for new hires?",
+      "expected_answer": "AcmeCorp has no documented policy for company cars or relocation packages, so I cannot confirm this benefit rather than guess."
     }
   ]
 }
