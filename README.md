@@ -18,9 +18,9 @@ The project was built in six checkpoints:
 
 ```
 ├── data/
-│   ├── dataset_full.json        # master: knowledge base + all 21 samples
+│   ├── dataset_full.json        # master: knowledge base + all 29 samples
 │   ├── train_fewshot.json       # 9 exemplars (disjoint topics from test)
-│   ├── test_heldout.json        # 12 held-out test samples
+│   ├── test_heldout.json        # 20 held-out test samples
 │   └── finetune_chat.jsonl      # optional fine-tuning dataset (generated)
 ├── evals/
 │   ├── __init__.py
@@ -102,20 +102,23 @@ so before/after studies stay auditable.
 ## Metrics
 
 - **Exact match** — strict normalized string equality (a cheap lower bound).
+- **Semantic similarity** — deterministic cosine over IDF-weighted token vectors
+  (a judge-independent objective cross-check, pass threshold 0.35).
 - **LLM-as-Judge** — semantic 0/1 grading against a reference, with explicit
-  anti-length/anti-style instructions.
+  anti-length/anti-position/anti-style instructions.
 - **Combined pass** — judge verdict, falling back to exact match.
-- **Latency** — mean / median / p95 (ms). **Cost** — estimated USD from tokens.
+- **Latency** — mean / median / p95 (ms and s). **Cost** — estimated USD from
+  tokens (total and per-query).
 
-Judge bias (length, position, self-consistency) is analyzed in
-`evals/bias_handler.py`; see `reports/final_eval_report.md` for this run's bias
-findings.
+Judge bias (length, position, verbosity, self-preference, consistency) is analyzed
+in `evals/bias_handler.py`; run the probe suite with `python main.py --bias-audit`.
+See `reports/final_eval_report.md` for this run's bias findings.
 
 ---
 
 ## Results
 
-Baseline combined pass **91.67%** (1 multi-hop failure) → optimized **100%**
-with no new failures (< ~500 ms faster mean latency; negligible cost increase).
-Full numbers: `reports/final_eval_report.md`. Failure analysis:
-`reports/root_cause_analysis.md`.
+Baseline combined pass **90%** (2 multi-hop failures on the 20-sample set) →
+optimized **95%** with both fixed and one judge-strictness regression analyzed in
+`reports/root_cause_analysis.md`. Mean latency dropped from ~2.18 s to ~1.74 s;
+per-query cost stays ~$0.0001. Full numbers: `reports/final_eval_report.md`.
